@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Uploader | Mobile Bridge</title>
+    <link rel="stylesheet" href="style.css?v=2">
+    <!-- EmailJS SDK -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <script type="text/javascript">
+        (function() {
+            emailjs.init("pvKlvqPHKY2_6H1Sh");
+        })();
+    </script>
+</head>
+<body>
+    <div class="bg-glow"></div>
+    <div class="bg-glow-2"></div>
+
+    <div class="container">
+        <!-- Navbar -->
+        <nav>
+            <div class="logo">
+                <svg style="width:24px; height:24px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 0 1-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 0 0 6.16-12.12A14.98 14.98 0 0 0 9.631 8.41m5.96 5.96a14.926 14.926 0 0 1-5.841 2.58m-.119-8.54a6 6 0 0 0-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 0 0-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 0 1-2.448-2.452.82.82 0 0 0-.16-.161 15.1 15.1 0 0 1 2.92-2.92" /></svg> Auto Uploader
+            </div>
+        </nav>
+
+        <!-- Main Contact Form (License Request) -->
+
+        <!-- Main Contact Form (License Request) -->
+        <section class="contact-section" id="license-form-section">
+            <h2 class="section-title">Contact</h2>
+            <p style="color: var(--text-muted); margin-bottom: 30px;">Request Your Software License Key</p>
+            
+            <div class="contact-form-wrapper">
+                <form id="licenseForm" onsubmit="event.preventDefault(); requestLicenseOTP();">
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" id="lf-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="lf-email" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Mobile Number</label>
+                        <input type="tel" id="lf-mobile" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Hardware ID</label>
+                        <input type="text" id="lf-hwid" required>
+                    </div>
+                    <div class="form-group">
+                        <label>How will this software help you?</label>
+                        <textarea id="lf-reason" rows="4" required></textarea>
+                    </div>
+                    <div class="form-group" style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
+                        <label id="captchaQuestion">Security Check: What is 5 + 3?</label>
+                        <input type="number" id="lf-captcha" placeholder="Answer" required style="margin-top: 8px;">
+                    </div>
+                    <button type="submit" class="btn-submit" id="lf-submit-btn">Verify and Submit</button>
+                </form>
+
+                <div id="lf-otp-box" class="otp-box">
+                    <p style="margin-bottom: 15px; font-size: 14px;">An OTP has been sent to your email.</p>
+                    <div class="form-group">
+                        <input type="text" id="lf-otp-input" placeholder="Enter OTP" style="text-align: center; letter-spacing: 5px; font-size: 18px;">
+                    </div>
+                    <button type="button" class="btn-submit" onclick="verifyLicenseOTP()">Confirm OTP</button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 Auto Uploader. All rights reserved.</p>
+    </footer>
+
+    <script>
+        let devClicks = 0;
+        let clickTimer;
+        const footerText = document.querySelector('footer p');
+        
+        // Change cursor to make it a subtle hint for the admin, but normal users won't guess it
+        footerText.style.cursor = 'pointer';
+        footerText.style.userSelect = 'none';
+
+        footerText.addEventListener('click', function() {
+            devClicks++;
+            clearTimeout(clickTimer);
+            if(devClicks === 5) {
+                window.location.href = 'admin_login.html';
+                devClicks = 0;
+            }
+            // Reset if they don't click fast enough (1.5 seconds)
+            clickTimer = setTimeout(() => devClicks = 0, 1500);
+        });
+        
+        // --- License Request Logic (OTP with FormSubmit & Captcha) ---
+        const FIREBASE_DB_URL = "https://samarth-auto-uploader-default-rtdb.firebaseio.com";
+        let expectedCaptcha = 0;
+        let generatedContactOTP = "";
+
+        // Generate Math Captcha on load
+        function generateCaptcha() {
+            const num1 = Math.floor(Math.random() * 10) + 1;
+            const num2 = Math.floor(Math.random() * 10) + 1;
+            expectedCaptcha = num1 + num2;
+            document.getElementById('captchaQuestion').innerText = `Security Check: What is ${num1} + ${num2}?`;
+            document.getElementById('lf-captcha').value = '';
+        }
+        window.addEventListener('load', generateCaptcha);
+
+        async function requestLicenseOTP() {
+            const email = document.getElementById('lf-email').value;
+            const name = document.getElementById('lf-name').value;
+            const captchaInput = parseInt(document.getElementById('lf-captcha').value);
+            const submitBtn = document.getElementById('lf-submit-btn');
+            
+            if (captchaInput !== expectedCaptcha) {
+                alert("Incorrect Captcha Answer! Please try again.");
+                generateCaptcha();
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'Sending OTP...';
+
+            try {
+                // Generate 6 digit OTP
+                generatedContactOTP = Math.floor(100000 + Math.random() * 900000).toString();
+                
+                // Send email using EmailJS
+                const templateParams = {
+                    message: `Hello ${name},\n\nYour OTP to verify your License Request is: ${generatedContactOTP}\n\nPlease enter this on the website to complete your request.`,
+                    to_email: email, // Assuming you might want to send it to the client, but EmailJS template must be configured to send to {{to_email}} or the default admin email. Wait, EmailJS templates by default send to the email specified in the template dashboard.
+                    // IMPORTANT: The user must configure the EmailJS template's "To Email" field to {{to_email}} or {{email}} to dynamically send to the client!
+                    email: email
+                };
+
+                const res = await emailjs.send('service_tzxymme', 'template_8k2gylf', templateParams);
+                
+                if (res.status === 200) {
+                    document.getElementById('lf-otp-box').style.display = 'block';
+                    submitBtn.style.display = 'none';
+                    alert('OTP sent to your email!');
+                } else {
+                    alert('Error sending OTP. Please try again.');
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = 'Verify and Submit';
+                }
+            } catch (e) {
+                console.error("EmailJS Error:", e);
+                alert('Error connecting to email server.');
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Verify and Submit';
+            }
+        }
+
+        async function verifyLicenseOTP() {
+            const email = document.getElementById('lf-email').value;
+            const otp = document.getElementById('lf-otp-input').value;
+            const name = document.getElementById('lf-name').value;
+            const mobile = document.getElementById('lf-mobile').value;
+            const hwid = document.getElementById('lf-hwid').value;
+            const reason = document.getElementById('lf-reason').value;
+
+            if(!otp) return alert('Please enter OTP');
+
+            if (otp === generatedContactOTP) {
+                try {
+                    // Save to Firebase
+                    await fetch(`${FIREBASE_DB_URL}/license_requests.json`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name, email, mobile, hwid, reason,
+                            date: new Date().toISOString(),
+                            verified: true
+                        })
+                    });
+                    
+                    document.getElementById('licenseForm').innerHTML = `
+                        <div style="text-align: center; padding: 20px;">
+                            <svg style="width: 50px; height: 50px; color: #10b981; margin: 0 auto 15px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            <h3 style="color: #10b981; font-family: 'Outfit'; font-size: 24px;">Thank you, your form is submitted!</h3>
+                            <p style="color: var(--text-muted); margin-top: 10px; font-size: 16px;">We will reply within 24 hours.</p>
+                        </div>
+                    `;
+                    document.getElementById('lf-otp-box').style.display = 'none';
+                } catch (e) {
+                    alert('Firebase error. Could not save request.');
+                }
+            } else {
+                alert('Invalid OTP');
+            }
+        }
+    </script>
+</body>
+
+</html>
