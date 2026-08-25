@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Admin Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        /* Animated Background Gradients */
+        .bg-glow {
+            position: absolute; width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(56, 189, 248, 0.2) 0%, rgba(15, 23, 42, 0) 70%);
+            top: -100px; left: -100px; z-index: -1;
+            animation: float1 10s infinite alternate;
+        }
+        .bg-glow-2 {
+            position: absolute; width: 400px; height: 400px;
+            background: radial-gradient(circle, rgba(239, 68, 68, 0.15) 0%, rgba(15, 23, 42, 0) 70%);
+            bottom: -50px; right: -50px; z-index: -1;
+            animation: float2 8s infinite alternate;
+        }
+
+        @keyframes float1 { 0% { transform: translate(0, 0); } 100% { transform: translate(50px, 50px); } }
+        @keyframes float2 { 0% { transform: translate(0, 0); } 100% { transform: translate(-50px, -50px); } }
+
+        .login-container {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transition: all 0.5s ease;
+        }
+
+        .header { text-align: center; margin-bottom: 30px; }
+        .header svg { width: 48px; height: 48px; color: #38bdf8; margin-bottom: 10px; }
+        .header h2 { font-size: 24px; font-weight: 600; margin-bottom: 8px; }
+        .header p { color: #94a3b8; font-size: 14px; }
+
+        .input-group { margin-bottom: 20px; text-align: left; }
+        .input-group label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 8px; }
+        .input-group input {
+            width: 100%; padding: 14px 16px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px; color: white;
+            font-size: 15px; outline: none; transition: border 0.3s;
+        }
+        .input-group input:focus { border-color: #38bdf8; }
+
+        .btn {
+            width: 100%; padding: 14px;
+            background: linear-gradient(135deg, #38bdf8, #2563eb);
+            color: white; border: none; border-radius: 10px;
+            font-size: 16px; font-weight: 600; cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 20px -10px #38bdf8; }
+        .btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+        /* Error / Success Toast */
+        .toast {
+            margin-top: 16px; padding: 12px; border-radius: 8px; font-size: 14px; text-align: center; display: none;
+        }
+        .toast.error { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); }
+        .toast.success { background: rgba(34, 197, 94, 0.1); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.2); }
+
+        /* Loader */
+        .loader {
+            border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid white;
+            border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite;
+            display: inline-block; vertical-align: middle; display: none;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Views */
+        #otpView { display: none; }
+
+        /* OTP Input Styling */
+        .otp-inputs { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 20px; }
+        .otp-inputs input {
+            width: 45px; height: 50px; text-align: center; font-size: 20px; font-weight: bold;
+            background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px; color: white; outline: none; transition: border 0.3s;
+        }
+        .otp-inputs input:focus { border-color: #38bdf8; }
+        .timer-text { text-align: center; font-size: 14px; color: #ef4444; margin-bottom: 20px; display: none; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="bg-glow"></div>
+    <div class="bg-glow-2"></div>
+
+    <div class="login-container">
+        <div class="header">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+            </svg>
+            <h2>Admin Secure Access</h2>
+            <p id="subtext">Please enter your credentials.</p>
+        </div>
+
+        <!-- Login View -->
+        <div id="loginView">
+            <div class="input-group">
+                <label>Email Address</label>
+                <input type="email" id="email" placeholder="admin@example.com" >
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                
+                <div style="position: relative;">
+                    <input type="password" id="password" placeholder="••••••" style="padding-right: 40px;">
+                    <button type="button" id="togglePassword" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #94a3b8; cursor: pointer;">
+                        <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <button class="btn" id="loginBtn" onclick="requestOTP()">
+                <span id="loginText">Send OTP via Email</span>
+                <div class="loader" id="loginLoader"></div>
+            </button>
+        </div>
+
+        <!-- OTP View -->
+        <div id="otpView">
+            <div class="otp-inputs" id="otpGroup">
+                <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1">
+                <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1">
+                <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1">
+                <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1">
+                <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1">
+                <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1">
+            </div>
+            <div id="otpTimer" class="timer-text">Valid for: 05:00</div>
+            <button class="btn" id="verifyBtn" onclick="verifyOTP()">
+                <span id="verifyText">Verify & Login</span>
+                <div class="loader" id="verifyLoader"></div>
+            </button>
+        </div>
+
+        <div id="toast" class="toast"></div>
+    </div>
+
+    <script>
+        // Password Visibility Toggle
+        const togglePassword = document.getElementById('togglePassword');
+        const passwordInput = document.getElementById('password');
+        const eyeIcon = document.getElementById('eyeIcon');
+        
+        const eyeOpen = `<path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />`;
+        const eyeClosed = `<path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />`;
+
+        togglePassword.addEventListener('click', function () {
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            eyeIcon.innerHTML = type === 'password' ? eyeOpen : eyeClosed;
+        });
+
+        // ==========================================
+        // No Access Key Required!
+        // ==========================================
+
+        function showToast(msg, type) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = `toast ${type}`;
+            toast.style.display = 'block';
+            setTimeout(() => toast.style.display = 'none', 4000);
+        }
+
+        async function hashString(str) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(str);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function requestOTP() {
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            
+            if(!email || !password) return showToast("Please fill all fields", "error");
+
+            document.getElementById('loginText').style.display = 'none';
+            document.getElementById('loginLoader').style.display = 'inline-block';
+            document.getElementById('loginBtn').disabled = true;
+
+            const inputHash = await hashString(email + ":" + password);
+            const expectedHash = "2aff08c9bfccd805ff03d076b5bcbf5c7c441eb79b58c6abbb8345fdd835c170";
+
+            if(inputHash !== expectedHash) {
+                document.getElementById('loginText').style.display = 'inline-block';
+                document.getElementById('loginLoader').style.display = 'none';
+                document.getElementById('loginBtn').disabled = false;
+                return showToast("Invalid Admin Credentials!", "error");
+            }
+
+
+
+            try {
+                // Generate a random 6-digit OTP
+                const generatedOTP = Math.floor(100000 + Math.random() * 900000).toString();
+                
+                // Save it in memory to verify later
+                sessionStorage.setItem('temp_otp', generatedOTP);
+
+                // Use FormSubmit to send email (No API key needed!)
+                const res = await fetch(`https://formsubmit.co/ajax/${email}`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        _subject: 'Secure Admin Login OTP',
+                        OTP_Code: generatedOTP,
+                        Message: 'Please use this 6-digit code to log into the Admin Panel.'
+                    })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success === 'true' || res.ok) {
+                    showToast("OTP sent to your email!", "success");
+                    document.getElementById('loginView').style.display = 'none';
+                    document.getElementById('otpView').style.display = 'block';
+                    document.getElementById('subtext').textContent = 'Enter the 6-digit OTP sent to your email.';
+                    document.getElementById('verifyBtn').disabled = false;
+                    startTimer(300); // 5 minutes
+                } else {
+                    showToast(data.message || "Failed to send OTP", "error");
+                }
+            } catch (err) {
+                showToast("Failed to connect to email server.", "error");
+            } finally {
+                document.getElementById('loginText').style.display = 'inline';
+                document.getElementById('loginLoader').style.display = 'none';
+                document.getElementById('loginBtn').disabled = false;
+            }
+        }
+
+        // OTP Input Logic
+        const otpInputs = document.querySelectorAll('#otpGroup input');
+        otpInputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                if (e.target.value.length > 1) {
+                    e.target.value = e.target.value.slice(0, 1);
+                }
+                if (e.target.value !== '' && index < otpInputs.length - 1) {
+                    otpInputs[index + 1].focus();
+                }
+            });
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && e.target.value === '' && index > 0) {
+                    otpInputs[index - 1].focus();
+                }
+            });
+        });
+
+        // Timer Logic
+        let timerInterval;
+        function startTimer(durationInSeconds) {
+            const timerDisplay = document.getElementById('otpTimer');
+            timerDisplay.style.display = 'block';
+            let timeRemaining = durationInSeconds;
+            
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                const minutes = Math.floor(timeRemaining / 60);
+                const seconds = timeRemaining % 60;
+                
+                timerDisplay.textContent = `Valid for: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                
+                if (timeRemaining <= 0) {
+                    clearInterval(timerInterval);
+                    timerDisplay.textContent = 'OTP Expired! Please request again.';
+                    document.getElementById('verifyBtn').disabled = true;
+                    sessionStorage.removeItem('temp_otp'); // Clear OTP on expire
+                }
+                timeRemaining--;
+            }, 1000);
+        }
+
+        function verifyOTP() {
+            let enteredOtp = '';
+            const inputs = document.getElementById('otpGroup').querySelectorAll('input');
+            inputs.forEach(input => enteredOtp += input.value);
+
+            if(enteredOtp.length !== 6) return showToast("Please enter a 6-digit OTP", "error");
+
+            document.getElementById('verifyText').style.display = 'none';
+            document.getElementById('verifyLoader').style.display = 'inline-block';
+            document.getElementById('verifyBtn').disabled = true;
+
+            const savedOtp = sessionStorage.getItem('temp_otp');
+
+            setTimeout(() => { // Small delay to show loader
+                if (savedOtp && enteredOtp === savedOtp) {
+                    showToast("Login Successful! Redirecting...", "success");
+                    sessionStorage.setItem('admin_auth', "authenticated");
+                    sessionStorage.removeItem('temp_otp'); // Clean up
+                    setTimeout(() => {
+                        window.location.href = 'Admin_Panel.html';
+                    }, 1000);
+                } else {
+                    showToast("Invalid OTP", "error");
+                    document.getElementById('verifyText').style.display = 'inline';
+                    document.getElementById('verifyLoader').style.display = 'none';
+                    document.getElementById('verifyBtn').disabled = false;
+                }
+            }, 800);
+        }
+    </script>
+</body>
+</html>
