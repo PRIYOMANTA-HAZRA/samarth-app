@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Uploader - Admin Cloud</title>
+    <!-- Firebase SDK -->
+            <!-- CryptoJS for License Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    
+    <style>
+        :root {
+            --primary: #6C63FF;
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --danger: #ef4444;
+            --success: #10b981;
+        }
+        body {
+            margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg-color); color: var(--text-main);
+            background-image: radial-gradient(circle at top right, #1e1b4b, transparent),
+                              radial-gradient(circle at bottom left, #0f172a, transparent);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px; margin: 0 auto; padding: 40px 20px;
+        }
+        header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 40px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px;
+        }
+        h1 { margin: 0; font-size: 28px; background: linear-gradient(to right, #6C63FF, #4facfe); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        .setup-warning {
+            background: rgba(239, 68, 68, 0.2); border: 1px solid var(--danger);
+            padding: 15px; border-radius: 8px; margin-bottom: 30px; display: none;
+        }
+
+        .dashboard-grid {
+            display: grid; grid-template-columns: 1fr 350px; gap: 30px; margin-bottom: 30px;
+        }
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        @media (max-width: 900px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            .container { padding: 20px 10px; }
+            header { flex-direction: column; text-align: center; gap: 10px; }
+            h1 { font-size: 22px; }
+            .card { padding: 15px; }
+            th, td { padding: 8px 10px; font-size: 12px; white-space: nowrap; }
+            button { font-size: 12px; padding: 6px 10px; }
+            .result-box { font-size: 14px; word-break: break-all; }
+        }
+
+        .card {
+            background: var(--card-bg); backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .card h2 { margin-top: 0; font-size: 18px; color: #cbd5e1; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; margin-bottom: 20px;}
+
+        /* Clients Table */
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        th { color: var(--text-muted); font-weight: 500; font-size: 13px; text-transform: uppercase; }
+        td { font-size: 14px; }
+        .status-active { color: var(--success); font-weight: bold; background: rgba(16, 185, 129, 0.1); padding: 4px 8px; border-radius: 4px;}
+        .status-blocked { color: var(--danger); font-weight: bold; background: rgba(239, 68, 68, 0.1); padding: 4px 8px; border-radius: 4px;}
+        
+        button {
+            background: var(--primary); color: white; border: none; padding: 8px 16px;
+            border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.2s;
+        }
+        button:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        button.btn-block { background: var(--danger); }
+        button.btn-unblock { background: var(--success); }
+
+        /* Generator Form */
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; color: var(--text-muted); font-size: 13px; }
+        input {
+            width: 100%; padding: 10px; box-sizing: border-box; background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: white; outline: none;
+        }
+        input:focus { border-color: var(--primary); }
+        .result-box {
+            margin-top: 20px; padding: 15px; background: rgba(16, 185, 129, 0.1);
+            border: 1px dashed var(--success); border-radius: 6px; text-align: center;
+            font-family: monospace; font-size: 16px; word-break: break-all; display: none;
+        }
+        .copy-btn { width: 100%; margin-top: 10px; background: #334155; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>☁️ Auto Uploader - Admin Cloud</h1>
+        <div id="connection-status" style="color: var(--text-muted);">Checking connection...</div>
+    </header>
+
+    <div id="setupWarning" class="setup-warning">
+        <strong>⚠️ Firebase is not configured!</strong> Please open the HTML file code and add your Firebase configuration at the top.
+    </div>
+
+    <div class="dashboard-grid">
+        <!-- Analytics -->
+        <div class="card" style="margin-bottom: 20px;">
+            <h2>📊 Usage Analytics</h2>
+            <div style="width: 100%; height: 250px;">
+                <canvas id="analyticsChart"></canvas>
+            </div>
+        </div>
+
+        <!-- License Generator -->
+        <div class="card">
+            <h2>🔑 Offline License Generator</h2>
+            <p style="color: var(--text-muted); font-size: 13px; margin-top: -10px;">Generate a key to activate a client's software offline.</p>
+            
+            <div class="form-group">
+                <label>Hardware ID</label>
+                <input type="text" id="genHwid" placeholder="e.g. 1a2b3c4d-5e6f...">
+            </div>
+            <div class="form-group">
+                <label>Validity (Days)</label>
+                <input type="number" id="genDays" value="30" placeholder="Number of days (e.g. 90 for 3 months)">
+            </div>
+            
+            <button style="width: 100%; padding: 12px; margin-top: 10px;" onclick="generateKey()">Generate Key</button>
+
+            <div id="resultBox" class="result-box">
+                <div id="generatedKey" style="font-weight: bold; margin-bottom: 10px;"></div>
+                <button class="copy-btn" onclick="copyKey()">📋 Copy to Clipboard</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Connected Clients (Full Width) -->
+    <div class="card full-width">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h2 style="margin: 0;">💻 Connected Devices (Live)</h2>
+            <button class="btn" onclick="exportTableToCSV('clientsTable', 'connected_devices.csv')" style="font-size: 12px; padding: 6px 12px; background: #10b981;">Export to Excel</button>
+        </div>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>PC Name</th>
+                        <th>Hardware ID</th>
+                        <th>Uploads</th>
+                        <th>License Validity</th>
+                        <th>Last Seen</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="clientsTable">
+                    <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Loading clients...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+        <!-- Recent Downloads -->
+        <div class="card" style="margin-top: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="margin: 0;">📥 Recent Downloads</h2>
+                <button class="btn" onclick="exportTableToCSV('downloadsTable', 'downloads.csv')" style="font-size: 12px; padding: 6px 12px; background: #10b981;">Export to Excel</button>
+            </div>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="downloadsTable">
+                        <tr><td colspan="3" style="text-align: center; color: var(--text-muted);">Loading downloads...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- License Requests -->
+        <div class="card" style="margin-top: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="margin: 0;">🛡️ License Requests (OTP Verified)</h2>
+                <button class="btn" onclick="exportTableToCSV('licenseReqTable', 'license_requests.csv')" style="font-size: 12px; padding: 6px 12px; background: #10b981;">Export to Excel</button>
+            </div>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Mobile</th>
+                            <th>Hardware ID</th>
+                            <th>Reason</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="licenseReqTable">
+                        <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Loading requests...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const FIREBASE_DB_URL = "https://samarth-auto-uploader-default-rtdb.firebaseio.com";
+    const secretSalt = 'samarth_auto_uploader_pro_2026'; // MUST MATCH server.js
+
+    document.getElementById('connection-status').innerText = '🟢 Connected to Cloud';
+    
+        let myChart = null;
+    function updateChart(labels, data) {
+        const ctx = document.getElementById('analyticsChart').getContext('2d');
+        if (myChart) {
+            myChart.data.labels = labels;
+            myChart.data.datasets[0].data = data;
+            myChart.update();
+        } else {
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Total Uploads',
+                        data: data,
+                        backgroundColor: 'rgba(56, 189, 248, 0.5)',
+                        borderColor: 'rgba(56, 189, 248, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#cbd5e1' } },
+                        x: { grid: { display: false }, ticks: { color: '#cbd5e1' } }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#cbd5e1' } }
+                    }
+                }
+            });
+        }
+    }
+
+    function fetchClients() {
+        fetch(`${FIREBASE_DB_URL}/clients.json`)
+            .then(res => res.json())
+            .then(data => {
+                const tbody = document.getElementById('clientsTable');
+                tbody.innerHTML = '';
+                
+                if (!data) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No active clients found.</td></tr>';
+                    return;
+                }
+
+                const chartLabels = [];
+                const chartData = [];
+
+                for (const hwid in data) {
+                    const client = data[hwid];
+                    
+                    // Auto-remove permanent keys after 3 months
+                    if (client.key_type === 'permanent' && client.valid_until && Date.now() > client.valid_until) {
+                        fetch(`${FIREBASE_DB_URL}/clients/${hwid}.json`, { method: 'DELETE' });
+                        continue;
+                    }
+                    
+                    let validityText = "<span style='color: var(--text-muted);'>N/A</span>";
+                    if (client.valid_until) {
+                        const daysLeft = Math.ceil((client.valid_until - Date.now()) / (1000 * 60 * 60 * 24));
+                        if (daysLeft > 0) {
+                            validityText = `<span style="color: #38bdf8;">${daysLeft} days left</span>`;
+                        } else {
+                            validityText = `<span style="color: var(--danger);">Expired</span>`;
+                        }
+                    }
+
+                    const tr = document.createElement('tr');
+                    
+                    const lastSeenDate = new Date(client.last_seen).toLocaleString();
+                    const isBlocked = client.status === 'blocked';
+                    const displayName = client.owner_name || client.pc_name || 'Unknown PC';
+                    const uploadCount = client.upload_count || 0;
+                    
+                    chartLabels.push(displayName);
+                    chartData.push(uploadCount);
+                    
+                    tr.innerHTML = `
+                        <td>
+                            <strong>${displayName}</strong>
+                            <button style="padding: 2px 5px; font-size:10px; background: transparent; border: 1px solid var(--primary); color: var(--primary); margin-left:5px; border-radius:3px;" onclick="editOwnerName('${hwid}', '${displayName}')">✎ Edit</button>
+                        </td>
+                        <td style="font-family: monospace; font-size: 12px; color: #cbd5e1;">
+                            ${hwid} <button style="padding: 2px 5px; font-size:10px; background: #334155; margin-left:5px;" onclick="copyToGen('${hwid}')">Copy</button>
+                        </td>
+                        <td style="font-weight: bold; color: #4CAF50;">${uploadCount} Docs</td>
+                        <td style="font-weight: bold;">${validityText}</td>
+                        <td style="font-size: 12px; color: var(--text-muted);">${lastSeenDate}</td>
+                        <td><span class="${isBlocked ? 'status-blocked' : 'status-active'}">${isBlocked ? 'BLOCKED' : 'ACTIVE'}</span></td>
+                        <td>
+                            ${isBlocked 
+                                ? `<button class="btn-unblock" onclick="toggleBlock('${hwid}', 'active')">Unblock</button>`
+                                : `<button class="btn-block" onclick="toggleBlock('${hwid}', 'blocked')">Block</button>`
+                            }
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+                updateChart(chartLabels, chartData);
+            })
+            .catch(e => {
+                console.error("Error fetching data:", e);
+                document.getElementById('clientsTable').innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Error connecting to database. Please check URL.</td></tr>';
+            });
+    }
+
+    // Refresh data every 3 seconds to simulate realtime
+    fetchClients();
+    fetchDownloads();
+    fetchLicenseRequests();
+    setInterval(() => {
+        fetchClients();
+        fetchDownloads();
+        fetchLicenseRequests();
+    }, 3000);
+
+    function fetchDownloads() {
+        fetch(`${FIREBASE_DB_URL}/downloads.json`)
+            .then(res => res.json())
+            .then(data => {
+                const tbody = document.getElementById('downloadsTable');
+                tbody.innerHTML = '';
+                if (!data) {
+                    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">No downloads yet.</td></tr>';
+                    return;
+                }
+                for (const key in data) {
+                    const req = data[key];
+                    const dateStr = new Date(req.date).toLocaleString();
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><strong>${req.name || 'N/A'}</strong></td>
+                        <td>${req.email || 'N/A'}</td>
+                        <td style="font-size: 12px; color: var(--text-muted);">${dateStr}</td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            })
+            .catch(e => console.error("Error fetching downloads", e));
+    }
+
+    function fetchLicenseRequests() {
+        fetch(`${FIREBASE_DB_URL}/license_requests.json`)
+            .then(res => res.json())
+            .then(data => {
+                const tbody = document.getElementById('licenseReqTable');
+                tbody.innerHTML = '';
+                if (!data) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No license requests yet.</td></tr>';
+                    return;
+                }
+                for (const key in data) {
+                    const req = data[key];
+                    const dateStr = new Date(req.date).toLocaleString();
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><strong>${req.name || 'N/A'}</strong></td>
+                        <td>${req.email || 'N/A'}</td>
+                        <td>${req.mobile || 'N/A'}</td>
+                        <td style="font-family: monospace;">${req.hwid || 'N/A'} <button style="padding: 2px 5px; font-size:10px; background: #334155; margin-left:5px;" onclick="copyToGen('${req.hwid}')">Gen Key</button></td>
+                        <td style="max-width: 200px; white-space: normal;">${req.reason || 'N/A'}</td>
+                        <td style="font-size: 12px; color: var(--text-muted);">${dateStr}</td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            })
+            .catch(e => console.error("Error fetching license requests", e));
+    }
+
+    function editOwnerName(hwid, currentName) {
+        const newName = prompt("Enter owner's name for this system:", currentName);
+        if (newName !== null && newName.trim() !== "") {
+            fetch(`${FIREBASE_DB_URL}/clients/${hwid}.json`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ owner_name: newName.trim() })
+            }).then(() => fetchClients()).catch(e => alert("Error updating name: " + e.message));
+        }
+    }
+
+    function toggleBlock(hwid, newStatus) {
+        if (newStatus === 'blocked') {
+            if(!confirm("Are you sure you want to BLOCK this PC? The software will stop working immediately.")) return;
+        }
+        
+        fetch(`${FIREBASE_DB_URL}/clients/${hwid}.json`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                status: newStatus,
+                updated_at: Date.now()
+            })
+        }).then(() => {
+            fetchClients(); // Refresh immediately
+        }).catch(e => alert("Error updating: " + e.message));
+    }
+
+    function copyToGen(hwid) {
+        document.getElementById('genHwid').value = hwid;
+    }
+
+    // Offline License Generator Logic (Matches Node.js Crypto)
+    function generateKey() {
+        const hwid = document.getElementById('genHwid').value.trim();
+        let days = parseInt(document.getElementById('genDays').value);
+        
+        if (!hwid) return alert("Please enter a Hardware ID!");
+        if (isNaN(days) || days < 1) days = 30;
+
+        let finalExpDays;
+        let isPermanent = false;
+        let validUntilMs;
+        
+        if (days >= 9999) { // Using 99999 as permanent
+            finalExpDays = 99999;
+            isPermanent = true;
+            validUntilMs = Date.now() + (90 * 24 * 60 * 60 * 1000); // 90 days for connected devices
+        } else {
+            const currentDays = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+            finalExpDays = currentDays + days;
+            validUntilMs = Date.now() + (days * 24 * 60 * 60 * 1000);
+        }
+
+        // Convert finalExpDays to hex
+        let expHex = finalExpDays.toString(16).toUpperCase();
+        while (expHex.length < 5) expHex = '0' + expHex;
+        if (expHex.length > 5) expHex = expHex.substring(0, 5); // Fallback
+
+        // Calculate MD5 hash: md5(hwid + expHex + secretSalt)
+        const hashInput = hwid + expHex + secretSalt;
+        const md5Hash = CryptoJS.MD5(hashInput).toString(CryptoJS.enc.Hex).toUpperCase();
+        
+        // Take first 11 chars
+        const sig = md5Hash.substring(0, 11);
+        const finalKey = sig + expHex; // 11 + 5 = 16 chars
+
+        const resultBox = document.getElementById('resultBox');
+        const generatedKeyDiv = document.getElementById('generatedKey');
+        
+        generatedKeyDiv.innerText = finalKey;
+        resultBox.style.display = 'block';
+
+        // Save Validity to Firebase so it shows on Dashboard
+        fetch(`${FIREBASE_DB_URL}/clients/${hwid}.json`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                key_type: isPermanent ? 'permanent' : 'temporary',
+                valid_until: validUntilMs,
+                updated_at: Date.now()
+            })
+        }).then(() => fetchClients()).catch(e => console.error(e));
+    }
+
+    function copyKey() {
+        const key = document.getElementById('generatedKey').innerText;
+        navigator.clipboard.writeText(key).then(() => {
+            alert("✅ License Key copied to clipboard!");
+        });
+    }
+
+    function exportTableToCSV(tableBodyId, filename) {
+        var csv = [];
+        var tbody = document.getElementById(tableBodyId);
+        var table = tbody.closest("table");
+        var rows = table.querySelectorAll("tr");
+        
+        for (var i = 0; i < rows.length; i++) {
+            var row = [], cols = rows[i].querySelectorAll("td, th");
+            
+            for (var j = 0; j < cols.length; j++) {
+                // Ignore the Action column (usually the last column in clientsTable)
+                if (cols[j].innerText.includes("Block") || cols[j].innerText.includes("Unblock") || cols[j].innerText.includes("✎ Edit") || cols[j].innerText.includes("Gen Key") || cols[j].innerText.includes("Copy")) {
+                    row.push('"' + cols[j].innerText.replace(/(\r\n|\n|\r)/gm, " ").replace(/"/g, '""').replace("✎ Edit", "").replace("Copy", "").replace("Gen Key", "").trim() + '"');
+                } else {
+                    row.push('"' + cols[j].innerText.replace(/(\r\n|\n|\r)/gm, " ").replace(/"/g, '""') + '"');
+                }
+            }
+            csv.push(row.join(","));
+        }
+
+        var csvFile = new Blob([csv.join("\n")], {type: "text/csv"});
+        var downloadLink = document.createElement("a");
+        downloadLink.download = filename;
+        downloadLink.href = window.URL.createObjectURL(csvFile);
+        downloadLink.style.display = "none";
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+    }
+</script>
+</body>
+</html>
